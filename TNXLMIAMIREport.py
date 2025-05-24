@@ -1551,40 +1551,46 @@ with tab3:
     dynamo_data      = safe_merge_all(dynamo_data,      ["Name"])
 
     # ─── 6) Pick player & date ────────────────────────────────────────────
-    assess_date = st.date_input("Assessment Date",
-                                value=datetime.date.today(),
-                                key="report_assess_date")
-    idx = st.selectbox("Select Player",
-                       player_db.index,
-                       format_func=lambda i: player_db.loc[i,"Name"],
-                       key="report_select_player")
-    row = player_db.loc[idx]
+    player_db = st.session_state.player_db.reset_index(drop=True)
+
+# if there are no players, stop early
+    if player_db.empty:
+     st.warning("No players in your database—please add at least one on the Player Database tab before generating a report.")
+     st.stop()
+
+# assessment date as before
+    assess_date = st.date_input(
+    "Assessment Date",
+    value=datetime.date.today(),
+    key="report_assess_date"
+)
+
+# now choose by position, not by label
+    idx = st.selectbox(
+    "Select Player",
+    list(range(len(player_db))),
+    format_func=lambda i: player_db.iloc[i]["Name"],
+    key="report_select_player"
+)
+
+# grab the row by iloc, never .loc
+    row = player_db.iloc[idx]
+
     bat = row.get("BattingHandedness") or ""
     thr = row.get("ThrowingHandedness") or ""
     player_info = {
-        "Name":          row["Name"],
-        "Age":           int(row["Age"]),
-        "Age Group":     row["Age Group"],
-        "Position":      row["Position"],
-        "Class":         row["Class"],
-        "High School":   row["High School"],
-        "Height":        row["Height"],
-        "Weight":        row["Weight"],
-        "B/T":           f"{bat}/{thr}".rstrip("/"),
-        "DOB":           row["DOB"],
-        "AssessmentDate": assess_date.strftime("%m/%d/%Y"),
-    }
-    notes_df     = st.session_state.get("notes_df", pd.DataFrame())
-    player_notes = notes_df[notes_df["Name"] == player_info["Name"]]
-    if not player_notes.empty:
-         latest_note = (
-         player_notes
-         .sort_values("Date", ascending=False)
-         .iloc[0]["Note"]
-        )
-         player_info["LatestNoteText"] = latest_note
-    else:
-        player_info["LatestNoteText"] = ""
+    "Name":           row["Name"],
+    "Age":            int(row["Age"]),
+    "Age Group":      row["Age Group"],
+    "Position":       row["Position"],
+    "Class":          row["Class"],
+    "High School":    row["High School"],
+    "Height":         row["Height"],
+    "Weight":         row["Weight"],
+    "B/T":            f"{bat}/{thr}".rstrip("/"),
+    "DOB":            row["DOB"],
+    "AssessmentDate": assess_date.strftime("%m/%d/%Y"),
+}
     # ─── 7) Two slice helpers ─────────────────────────────────────────────
     def slice_by_age(df):
         if df is None: return None
