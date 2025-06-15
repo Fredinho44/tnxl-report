@@ -126,15 +126,13 @@ def flatten_thresholds(thr: dict, *, pad_factor: float = 0.1) -> pd.DataFrame:
 # -------------------------------------------------
 def safe_rerun():
     """
-    Try st.rerun  →  st.experimental_rerun  →  final fallback = warn user.
+    Try st.rerun → st.experimental_rerun → fallback: browser warning.
     """
-    if hasattr(st, "rerun"):
-        st.rerun()
-    elif hasattr(st, "experimental_rerun"):
-        st.experimental_rerun()
-    else:
-        # very old Streamlit – no API exists
-        st.warning("Settings updated – please hit your browser’s Refresh button.")
+    try:
+        getattr(st, "rerun", getattr(st, "experimental_rerun", lambda: None))()
+    except Exception as e:
+        st.warning("Please manually refresh the page.")
+        st.error(f"Rerun error: {e}")
 
 
 metric_thresholds = {
@@ -1714,42 +1712,39 @@ with tab4:
                                file_name="thresholds.csv", mime="text/csv",
                                key="dl_thresh")
 
-        with col_up:
-            if "tab4_csv_uploaded" not in st.session_state:
-                st.session_state.tab4_csv_uploaded = False
+            with col_up:
+             uploaded_csv = st.file_uploader("⬆️ Upload CSV", type="csv",
+                                            help="Columns: Age Group, Metric, below_avg, avg, above_avg",
+                                            key="threshold_uploader")
 
-            up_file = st.file_uploader("⬆️ Upload CSV", type="csv",
-                                       help="Columns: Age Group, Metric, below_avg, avg, above_avg",
-                                       key="threshold_uploader")
-
-            if up_file and not st.session_state.tab4_csv_uploaded:
+            if uploaded_csv:
                 try:
-                    df_up = pd.read_csv(up_file)
-                    req = {"Age Group", "Metric", "below_avg", "avg", "above_avg"}
-                    if not req.issubset(df_up.columns):
+                    df_up = pd.read_csv(uploaded_csv)
+                    required_cols = {"Age Group", "Metric", "below_avg", "avg", "above_avg"}
+
+                    if not required_cols.issubset(df_up.columns):
                         st.error("CSV missing required columns.")
                     else:
-                        new = {}
-                        for _, r in df_up.iterrows():
-                            g, m = r["Age Group"], r["Metric"]
-                            new.setdefault(g, {})[m] = {
-                                "below_avg": float(r["below_avg"]),
-                                "avg":       float(r["avg"]),
-                                "above_avg": float(r["above_avg"]),
-                            }
-                        st.session_state["thresholds"] = new
-                        st.session_state.tab4_csv_uploaded = True
-                        st.success("Imported thresholds.")
-                        st.rerun()
+                        st.success("✅ File ready. Click below to apply and update thresholds.")
+
+                        if st.button("🔁 Update Thresholds"):
+                            new = {}
+                            for _, r in df_up.iterrows():
+                                g, m = r["Age Group"], r["Metric"]
+                                new.setdefault(g, {})[m] = {
+                                    "below_avg": float(r["below_avg"]),
+                                    "avg":       float(r["avg"]),
+                                    "above_avg": float(r["above_avg"]),
+                                }
+                            st.session_state["thresholds"] = new
+                            st.success("✅ Thresholds updated. Refreshing page...")
+                            safe_rerun()
 
                 except Exception as exc:
-                    st.error(f"Failed to read CSV: {exc}")
+                    st.error(f"❌ Failed to read CSV: {exc}")
 
-        # Optional: reset upload state
-        if st.session_state.tab4_csv_uploaded:
-            if st.button("🔄 Reset Upload", key="reset_thresh_upload"):
-                st.session_state.tab4_csv_uploaded = False
-                st.experimental_rerun()
+
+       
 
 
 
@@ -2010,6 +2005,11 @@ with tab5:
                           "FB Velocity", "SL Velocity", "CB Velocity", "CH Velocity"])
             template_btn("mobility_template.csv",
                          ["Player Name", "Ankle Mobility", "Thoracic Mobility", "Lumbar Mobility"])
+
+
+
+
+
 
 
 
