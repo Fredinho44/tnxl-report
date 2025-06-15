@@ -1715,9 +1715,14 @@ with tab4:
                                key="dl_thresh")
 
         with col_up:
+            if "tab4_csv_uploaded" not in st.session_state:
+                st.session_state.tab4_csv_uploaded = False
+
             up_file = st.file_uploader("⬆️ Upload CSV", type="csv",
-                                       help="Columns: Age Group, Metric, below_avg, avg, above_avg")
-            if up_file:
+                                       help="Columns: Age Group, Metric, below_avg, avg, above_avg",
+                                       key="threshold_uploader")
+
+            if up_file and not st.session_state.tab4_csv_uploaded:
                 try:
                     df_up = pd.read_csv(up_file)
                     req = {"Age Group", "Metric", "below_avg", "avg", "above_avg"}
@@ -1733,14 +1738,19 @@ with tab4:
                                 "above_avg": float(r["above_avg"]),
                             }
                         st.session_state["thresholds"] = new
+                        st.session_state.tab4_csv_uploaded = True
                         st.success("Imported thresholds.")
-                        safe_rerun()
-
-                        # Streamlit v1.28+ has st.rerun; older versions use experimental_rerun
-                        getattr(st, "rerun", getattr(st, "experimental_rerun"))()
+                        st.rerun()
 
                 except Exception as exc:
                     st.error(f"Failed to read CSV: {exc}")
+
+        # Optional: reset upload state
+        if st.session_state.tab4_csv_uploaded:
+            if st.button("🔄 Reset Upload", key="reset_thresh_upload"):
+                st.session_state.tab4_csv_uploaded = False
+                st.experimental_rerun()
+
 
 
 
@@ -2000,3 +2010,8 @@ with tab5:
                           "FB Velocity", "SL Velocity", "CB Velocity", "CH Velocity"])
             template_btn("mobility_template.csv",
                          ["Player Name", "Ankle Mobility", "Thoracic Mobility", "Lumbar Mobility"])
+
+
+
+
+
