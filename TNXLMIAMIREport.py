@@ -1604,6 +1604,7 @@ with tab3:
 # ─── Tab 4 : Thresholds ───────────────────────────────────────────────
 with tab4:
     st.header("🔧 Metric Thresholds by Age-Group")
+    st.markdown("### Tab 4 Loaded")
 
     # 0️⃣  Guarantee we have an age-centric thresholds dict
     if "thresholds" not in st.session_state:
@@ -1755,6 +1756,7 @@ with tab4:
 # ─────────────────────────────────────────────────────────────────────────────
 with tab5:
     st.header("📄 Reports & Templates")
+    st.markdown("### Tab 5 Loaded")
 
     # Internal tabs
     rep_tab, tmpl_tab = st.tabs(["Generate Report", "Template’s"])
@@ -2005,6 +2007,10 @@ with tab5:
                           "FB Velocity", "SL Velocity", "CB Velocity", "CH Velocity"])
             template_btn("mobility_template.csv",
                          ["Player Name", "Ankle Mobility", "Thoracic Mobility", "Lumbar Mobility"])
+
+
+
+
 
 
 
