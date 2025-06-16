@@ -1603,149 +1603,145 @@ with tab3:
 
 # ─── Tab 4 : Thresholds ───────────────────────────────────────────────
 with tab4:
-    st.header("🔧 Metric Thresholds by Age-Group")
-    st.markdown("### Tab 4 Loaded")
+    try:
+        st.header("🔧 Metric Thresholds by Age-Group")
+        st.markdown("✅ Tab 4 is rendering...")
 
-    # 0️⃣  Guarantee we have an age-centric thresholds dict
-    if "thresholds" not in st.session_state:
-        st.session_state["thresholds"] = broadcast_metrics_to_ages(metric_thresholds)
+        # Initialize session state
+        if "tab4_csv_uploaded" not in st.session_state:
+            st.session_state["tab4_csv_uploaded"] = False
 
-    # one-time fix if a flat file was loaded earlier
-    if not any(k in AGE_LABELS for k in st.session_state["thresholds"].keys()):
-        st.session_state["thresholds"] = broadcast_metrics_to_ages(
-            st.session_state["thresholds"]
-        )
+        if "thresholds" not in st.session_state:
+            st.session_state["thresholds"] = broadcast_metrics_to_ages(metric_thresholds)
 
-    thresholds = st.session_state["thresholds"]
+        # Fix old flat structure if needed
+        if not any(k in AGE_LABELS for k in st.session_state["thresholds"].keys()):
+            st.session_state["thresholds"] = broadcast_metrics_to_ages(st.session_state["thresholds"])
 
-    # rules: which metrics are “smaller = better”
-    lower_is_better = {"30yd Time", "60yd Time", "5-5-10 Shuttle Time"}
+        thresholds = st.session_state["thresholds"]
+        lower_is_better = {"30yd Time", "60yd Time", "5-5-10 Shuttle Time"}
 
-    def order_cuts(metric: str, lo: float, mid: float, hi: float) -> dict:
-        """Return labels + numeric order, flipping if lower is better."""
-        if metric in lower_is_better:
+        def order_cuts(metric: str, lo: float, mid: float, hi: float) -> dict:
+            if metric in lower_is_better:
+                return dict(
+                    lbl_lo="Above Avg (fastest/best)",
+                    lbl_mid="Avg",
+                    lbl_hi="Below Avg (slowest/worst)",
+                    lo=hi, mid=mid, hi=lo
+                )
             return dict(
-                lbl_lo="Above Avg (fastest/best)",
+                lbl_lo="Below Avg",
                 lbl_mid="Avg",
-                lbl_hi="Below Avg (slowest/worst)",
-                lo=hi, mid=mid, hi=lo          # swap ends
+                lbl_hi="Above Avg",
+                lo=lo, mid=mid, hi=hi
             )
-        return dict(
-            lbl_lo="Below Avg",
-            lbl_mid="Avg",
-            lbl_hi="Above Avg",
-            lo=lo, mid=mid, hi=hi
-        )
 
-    # 1️⃣  View / Edit toggle
-    edit_mode = st.toggle("Edit mode", value=False)
-    st.caption("Switch to **Edit** to change values, then press **Save thresholds**.")
+        # View/Edit toggle
+        edit_mode = st.toggle("Edit mode", value=False)
+        st.caption("Switch to **Edit** to change values, then press **Save thresholds**.")
 
-    # 2️⃣  Tabs by age-group
-    age_groups = list(thresholds.keys())
-    if not age_groups:
-        st.error("⚠️ No age-group data found (expected keys like 'varsity (16–18)').")
-        st.stop()
-
-    for grp, grp_tab in zip(age_groups, st.tabs(age_groups)):
-        with grp_tab:
-            metrics = thresholds[grp]
-            sel_metric = st.selectbox("Metric", sorted(metrics.keys()),
-                                      key=f"sel_{grp}")
-
-            cuts = metrics[sel_metric]
-            if isinstance(cuts, dict) and {"below_avg", "avg", "above_avg"} <= cuts.keys():
-                lo, mid, hi = cuts["below_avg"], cuts["avg"], cuts["above_avg"]
-            else:
-                mid = float(cuts) if cuts else 0.0
-                lo, hi = round(mid*0.9, 2), round(mid*1.1, 2)
-
-            cfg = order_cuts(sel_metric, float(lo), float(mid), float(hi))
-
-            rng_min = min(cfg["lo"], cfg["mid"], cfg["hi"]) * 0.50
-            rng_max = max(cfg["lo"], cfg["mid"], cfg["hi"]) * 1.50
-
-            col_lbl, col_lo, col_mid, col_hi = st.columns([2, 1, 1, 1])
-            col_lbl.markdown(f"### {sel_metric}")
-
-            if edit_mode:
-                new_lo = col_lo.number_input(cfg["lbl_lo"],  value=float(cfg["lo"]),
-                                             min_value=float(rng_min), max_value=float(cfg["mid"]),
-                                             step=0.01, key=f"{grp}_{sel_metric}_lo")
-                new_mid= col_mid.number_input(cfg["lbl_mid"], value=float(cfg["mid"]),
-                                             min_value=min(new_lo, cfg["mid"]),
-                                             max_value=max(new_lo, cfg["hi"]),
-                                             step=0.01, key=f"{grp}_{sel_metric}_mid")
-                new_hi = col_hi.number_input(cfg["lbl_hi"],  value=float(cfg["hi"]),
-                                             min_value=new_mid, max_value=float(rng_max),
-                                             step=0.01, key=f"{grp}_{sel_metric}_hi")
-
-                # write back in canonical order
-                if sel_metric in lower_is_better:
-                    thresholds[grp][sel_metric] = {
-                        "below_avg": new_hi,
-                        "avg":       new_mid,
-                        "above_avg": new_lo
-                    }
-                else:
-                    thresholds[grp][sel_metric] = {
-                        "below_avg": new_lo,
-                        "avg":       new_mid,
-                        "above_avg": new_hi
-                    }
-            else:
-                col_lo.metric(cfg["lbl_lo"],  f"{cfg['lo']}")
-                col_mid.metric(cfg["lbl_mid"], f"{cfg['mid']}")
-                col_hi.metric(cfg["lbl_hi"],  f"{cfg['hi']}")
-
-    # 3️⃣  Save / Download / Upload
-    if edit_mode:
-        col_save, col_dl, col_up = st.columns(3)
-
-        with col_save:
-            if st.button("💾 Save thresholds"):
-                flatten_thresholds(thresholds).to_csv("thresholds.csv", index=False)
-                st.success("Saved → thresholds.csv")
-
-        with col_dl:
-            dl_bytes = flatten_thresholds(thresholds).to_csv(index=False).encode()
-            st.download_button("⬇️ Download CSV", dl_bytes,
-                               file_name="thresholds.csv", mime="text/csv",
-                               key="dl_thresh")
-
-            with col_up:
-             uploaded_csv = st.file_uploader("⬆️ Upload CSV", type="csv",
-                                            help="Columns: Age Group, Metric, below_avg, avg, above_avg",
-                                            key="threshold_uploader")
-
-            if uploaded_csv:
-                try:
-                    df_up = pd.read_csv(uploaded_csv)
-                    required_cols = {"Age Group", "Metric", "below_avg", "avg", "above_avg"}
-
-                    if not required_cols.issubset(df_up.columns):
-                        st.error("CSV missing required columns.")
+        # Age-group tabs
+        age_groups = list(thresholds.keys())
+        if not age_groups:
+            st.warning("⚠️ No age-group data found. Please upload thresholds.")
+        else:
+            for grp, grp_tab in zip(age_groups, st.tabs(age_groups)):
+                with grp_tab:
+                    metrics = thresholds[grp]
+                    sel_metric = st.selectbox("Metric", sorted(metrics.keys()), key=f"sel_{grp}")
+                    cuts = metrics[sel_metric]
+                    if isinstance(cuts, dict) and {"below_avg", "avg", "above_avg"} <= cuts.keys():
+                        lo, mid, hi = cuts["below_avg"], cuts["avg"], cuts["above_avg"]
                     else:
-                        st.success("✅ File ready. Click below to apply and update thresholds.")
+                        mid = float(cuts) if cuts else 0.0
+                        lo, hi = round(mid * 0.9, 2), round(mid * 1.1, 2)
 
-                        if st.button("🔁 Update Thresholds"):
-                            new = {}
-                            for _, r in df_up.iterrows():
-                                g, m = r["Age Group"], r["Metric"]
-                                new.setdefault(g, {})[m] = {
-                                    "below_avg": float(r["below_avg"]),
-                                    "avg":       float(r["avg"]),
-                                    "above_avg": float(r["above_avg"]),
-                                }
-                            st.session_state["thresholds"] = new
-                            st.success("✅ Thresholds updated. Refreshing page...")
-                            safe_rerun()
+                    cfg = order_cuts(sel_metric, float(lo), float(mid), float(hi))
+                    rng_min = min(cfg["lo"], cfg["mid"], cfg["hi"]) * 0.50
+                    rng_max = max(cfg["lo"], cfg["mid"], cfg["hi"]) * 1.50
 
-                except Exception as exc:
-                    st.error(f"❌ Failed to read CSV: {exc}")
+                    col_lbl, col_lo, col_mid, col_hi = st.columns([2, 1, 1, 1])
+                    col_lbl.markdown(f"### {sel_metric}")
 
+                    if edit_mode:
+                        new_lo = col_lo.number_input(cfg["lbl_lo"], value=float(cfg["lo"]),
+                                                     min_value=float(rng_min), max_value=float(cfg["mid"]),
+                                                     step=0.01, key=f"{grp}_{sel_metric}_lo")
+                        new_mid = col_mid.number_input(cfg["lbl_mid"], value=float(cfg["mid"]),
+                                                       min_value=min(new_lo, cfg["mid"]),
+                                                       max_value=max(new_lo, cfg["hi"]),
+                                                       step=0.01, key=f"{grp}_{sel_metric}_mid")
+                        new_hi = col_hi.number_input(cfg["lbl_hi"], value=float(cfg["hi"]),
+                                                     min_value=new_mid, max_value=float(rng_max),
+                                                     step=0.01, key=f"{grp}_{sel_metric}_hi")
 
-       
+                        # write back
+                        if sel_metric in lower_is_better:
+                            thresholds[grp][sel_metric] = {
+                                "below_avg": new_hi,
+                                "avg": new_mid,
+                                "above_avg": new_lo
+                            }
+                        else:
+                            thresholds[grp][sel_metric] = {
+                                "below_avg": new_lo,
+                                "avg": new_mid,
+                                "above_avg": new_hi
+                            }
+                    else:
+                        col_lo.metric(cfg["lbl_lo"], f"{cfg['lo']}")
+                        col_mid.metric(cfg["lbl_mid"], f"{cfg['mid']}")
+                        col_hi.metric(cfg["lbl_hi"], f"{cfg['hi']}")
+
+            # Save / Download / Upload
+            if edit_mode:
+                col_save, col_dl, col_up = st.columns(3)
+
+                with col_save:
+                    if st.button("💾 Save thresholds"):
+                        flatten_thresholds(thresholds).to_csv("thresholds.csv", index=False)
+                        st.success("Saved → thresholds.csv")
+
+                with col_dl:
+                    dl_bytes = flatten_thresholds(thresholds).to_csv(index=False).encode()
+                    st.download_button("⬇️ Download CSV", dl_bytes,
+                                       file_name="thresholds.csv", mime="text/csv", key="dl_thresh")
+
+                with col_up:
+                    uploaded_csv = st.file_uploader("⬆️ Upload CSV", type="csv",
+                                                    help="Columns: Age Group, Metric, below_avg, avg, above_avg",
+                                                    key="threshold_uploader")
+
+                    if uploaded_csv:
+                        try:
+                            df_up = pd.read_csv(uploaded_csv)
+                            required_cols = {"Age Group", "Metric", "below_avg", "avg", "above_avg"}
+
+                            if not required_cols.issubset(df_up.columns):
+                                st.error("CSV missing required columns.")
+                            else:
+                                st.success("✅ File ready. Click below to apply and update thresholds.")
+
+                                if st.button("🔁 Update Thresholds"):
+                                    new = {}
+                                    for _, r in df_up.iterrows():
+                                        g, m = r["Age Group"], r["Metric"]
+                                        new.setdefault(g, {})[m] = {
+                                            "below_avg": float(r["below_avg"]),
+                                            "avg": float(r["avg"]),
+                                            "above_avg": float(r["above_avg"]),
+                                        }
+                                    st.session_state["thresholds"] = new
+                                    st.success("✅ Thresholds updated. Refreshing page...")
+                                    safe_rerun()
+
+                        except Exception as exc:
+                            st.error(f"❌ Failed to read CSV: {exc}")
+
+    except Exception as e:
+        st.error("❌ Tab 4 crashed.")
+        st.exception(e)
+
 
 
 
@@ -1755,261 +1751,243 @@ with tab4:
 # TAB-5  ➜  Reports & Templates
 # ─────────────────────────────────────────────────────────────────────────────
 with tab5:
-    st.header("📄 Reports & Templates")
-    st.markdown("### Tab 5 Loaded")
+    try:
+        st.header("📄 Reports & Templates")
+        st.markdown("### ✅ Tab 5 is rendering...")
 
-    # Internal tabs
-    rep_tab, tmpl_tab = st.tabs(["Generate Report", "Template’s"])
+        # Internal tabs
+        rep_tab, tmpl_tab = st.tabs(["Generate Report", "Template’s"])
 
-    # =========================================================================
-    # A)  GENERATE REPORT
-    # =========================================================================
-    with rep_tab:
-        import pandas as pd
-        import datetime, difflib
-        from pandas.errors import EmptyDataError
+        # =========================================================================
+        # A)  GENERATE REPORT
+        # =========================================================================
+        with rep_tab:
+            import pandas as pd
+            import datetime, difflib
+            from pandas.errors import EmptyDataError
 
-        # ---------- little helpers ------------------------------------------
-        def safe_read_csv(file_obj):
-            """Try several encodings → DataFrame (or empty DF)."""
-            if file_obj is None:
+            def safe_read_csv(file_obj):
+                if file_obj is None:
+                    return pd.DataFrame()
+                for enc in (None, "cp1252", "latin-1"):
+                    try:
+                        file_obj.seek(0)
+                        return pd.read_csv(file_obj, encoding=enc) if enc else pd.read_csv(file_obj)
+                    except (UnicodeDecodeError, EmptyDataError):
+                        continue
                 return pd.DataFrame()
-            for enc in (None, "cp1252", "latin-1"):
-                try:
-                    file_obj.seek(0)
-                    return pd.read_csv(file_obj, encoding=enc) if enc else pd.read_csv(file_obj)
-                except (UnicodeDecodeError, EmptyDataError):
-                    continue
-            return pd.DataFrame()
 
-        def normalize_dashes(s):
-            return (s or "").replace("\u0096", "-").replace("–", "-").replace("—", "-")
+            def normalize_dashes(s):
+                return (s or "").replace("\u0096", "-").replace("–", "-").replace("—", "-")
 
-        # ---------- 1)  Upload CSVs & map raw names -------------------------
-        with st.expander("1️⃣  Upload CSVs & Map Names", expanded=True):
-            up1, up2, up3 = st.columns(3)
-            with up1:
-                fs_file    = st.file_uploader("Flightscope CSV",         type="csv")
-                throw_file = st.file_uploader("Throwing Velocities CSV", type="csv")
-            with up2:
-                blast_file = st.file_uploader("Blast CSV",               type="csv")
-                run_file   = st.file_uploader("Running Speed CSV",       type="csv")
-            with up3:
-                mob_file   = st.file_uploader("Mobility CSV",            type="csv")
-                dyn_file   = st.file_uploader("Dynamo CSV",              type="csv")
+            with st.expander("1️⃣  Upload CSVs & Map Names", expanded=True):
+                up1, up2, up3 = st.columns(3)
+                with up1:
+                    fs_file = st.file_uploader("Flightscope CSV", type="csv")
+                    throw_file = st.file_uploader("Throwing Velocities CSV", type="csv")
+                with up2:
+                    blast_file = st.file_uploader("Blast CSV", type="csv")
+                    run_file = st.file_uploader("Running Speed CSV", type="csv")
+                with up3:
+                    mob_file = st.file_uploader("Mobility CSV", type="csv")
+                    dyn_file = st.file_uploader("Dynamo CSV", type="csv")
 
-            # read – empty df if nothing
-            flightscope_data = safe_read_csv(fs_file)
-            blast_data       = safe_read_csv(blast_file)
-            throwing_data    = safe_read_csv(throw_file)
-            running_data     = safe_read_csv(run_file)
-            mobility_data    = safe_read_csv(mob_file)
-            dynamo_data      = safe_read_csv(dyn_file)
+                flightscope_data = safe_read_csv(fs_file)
+                blast_data = safe_read_csv(blast_file)
+                throwing_data = safe_read_csv(throw_file)
+                running_data = safe_read_csv(run_file)
+                mobility_data = safe_read_csv(mob_file)
+                dynamo_data = safe_read_csv(dyn_file)
 
-            # normalise dashes in a few key columns
-            for df, col in [
-                (running_data,  "AthleteID"),
-                (mobility_data, "Player Name"),
-                (throwing_data, "Player Name")
-            ]:
-                if col in df.columns:
-                    df[col] = df[col].astype(str).apply(normalize_dashes)
+                for df, col in [
+                    (running_data, "AthleteID"),
+                    (mobility_data, "Player Name"),
+                    (throwing_data, "Player Name")
+                ]:
+                    if col in df.columns:
+                        df[col] = df[col].astype(str).apply(normalize_dashes)
 
-            # ------- fuzzy map UI -----------------------------------------
-            player_db  = st.session_state.player_db.copy()
-            canonical  = player_db["Name"].tolist()
+                player_db = st.session_state.player_db.copy()
+                canonical = player_db["Name"].tolist()
 
-            def mapper_ui(df, raw_col, label):
-                """Return {raw_name → mapped_name} via select-boxes."""
-                if df.empty or raw_col not in df.columns:
-                    return {}
-                m = {}
-                st.subheader(f"{label} – name mapping")
-                for raw in df[raw_col].dropna().unique():
-                    matches = difflib.get_close_matches(raw, canonical, n=3, cutoff=0.6)
-                    default = matches[0] if matches else "<leave as is>"
-                    choice  = st.selectbox(
-                        raw,
-                        ["<leave as is>"] + canonical,
-                        index=(["<leave as is>"] + canonical).index(default),
-                        key=f"{label}_{raw}"
-                    )
-                    m[raw] = raw if choice == "<leave as is>" else choice
-                return m
+                def mapper_ui(df, raw_col, label):
+                    if df.empty or raw_col not in df.columns:
+                        return {}
+                    m = {}
+                    st.subheader(f"{label} – name mapping")
+                    for raw in df[raw_col].dropna().unique():
+                        matches = difflib.get_close_matches(raw, canonical, n=3, cutoff=0.6)
+                        default = matches[0] if matches else "<leave as is>"
+                        choice = st.selectbox(
+                            raw,
+                            ["<leave as is>"] + canonical,
+                            index=(["<leave as is>"] + canonical).index(default),
+                            key=f"{label}_{raw}"
+                        )
+                        m[raw] = raw if choice == "<leave as is>" else choice
+                    return m
 
-            run_map   = mapper_ui(running_data,  "AthleteID",   "Running")
-            mob_map   = mapper_ui(mobility_data, "Player Name", "Mobility")
-            throw_map = mapper_ui(throwing_data, "Player Name", "Throwing")
+                run_map = mapper_ui(running_data, "AthleteID", "Running")
+                mob_map = mapper_ui(mobility_data, "Player Name", "Mobility")
+                throw_map = mapper_ui(throwing_data, "Player Name", "Throwing")
 
-            # apply mappings
-            if not running_data.empty:
-                running_data["AthleteID"]   = running_data["AthleteID"].map(lambda x: run_map.get(x, x))
-            if not mobility_data.empty:
-                mobility_data["Player Name"] = mobility_data["Player Name"].map(lambda x: mob_map.get(x, x))
-            if not throwing_data.empty:
-                throwing_data["Player Name"] = throwing_data["Player Name"].map(lambda x: throw_map.get(x, x))
+                if not running_data.empty:
+                    running_data["AthleteID"] = running_data["AthleteID"].map(lambda x: run_map.get(x, x))
+                if not mobility_data.empty:
+                    mobility_data["Player Name"] = mobility_data["Player Name"].map(lambda x: mob_map.get(x, x))
+                if not throwing_data.empty:
+                    throwing_data["Player Name"] = throwing_data["Player Name"].map(lambda x: throw_map.get(x, x))
 
-        # ---------- 2)  Pick player & assessment date ----------------------
-        st.markdown("### 2️⃣  Select Player & Date")
-        player_db["nm"] = player_db["Name"].str.lower().str.strip()
-        if "Age Group" not in player_db.columns:
-            player_db["Age Group"] = player_db["Age"].apply(get_group)
+            # 2️⃣ Select Player & Date
+            st.markdown("### 2️⃣  Select Player & Date")
+            player_db["nm"] = player_db["Name"].str.lower().str.strip()
+            if "Age Group" not in player_db.columns:
+                player_db["Age Group"] = player_db["Age"].apply(get_group)
 
-        if player_db.empty:
-            st.warning("Add players first (tab **Player Database**).")
-            st.stop()
+            if player_db.empty:
+                st.warning("Add players first (tab **Player Database**).")
+                st.stop()
 
-        sel_idx = st.selectbox("Player", player_db.index, format_func=lambda i: player_db.at[i, "Name"])
-        prow    = player_db.loc[sel_idx]
-        assess_date = st.date_input("Assessment Date", datetime.date.today())
+            sel_idx = st.selectbox("Player", player_db.index, format_func=lambda i: player_db.at[i, "Name"])
+            prow = player_db.loc[sel_idx]
+            assess_date = st.date_input("Assessment Date", datetime.date.today())
 
-        player_info = {
-            "Name": prow["Name"],
-            "Age": int(prow["Age"]),
-            "Age Group": prow["Age Group"],
-            "Position": prow["Position"],
-            "Class": prow["Class"],
-            "High School": prow["High School"],
-            "Height": prow["Height"],
-            "Weight": prow["Weight"],
-            "B/T": f"{prow.get('BattingHandedness','')}/{prow.get('ThrowingHandedness','')}".rstrip("/"),
-            "DOB": prow["DOB"],
-            "AssessmentDate": assess_date.strftime("%m/%d/%Y"),
-        }
-
-        # latest scout-note
-        notes_df = st.session_state.get("notes_df", pd.DataFrame())
-        last_note = (
-            notes_df.query("Name == @player_info['Name']")
-                    .sort_values("Date", ascending=False)["Note"]
-                    .head(1)
-        )
-        player_info["LatestNoteText"] = last_note.iat[0] if not last_note.empty else ""
-
-        # ---------- 3)  Slice helpers -------------------------------------
-        grp = player_info["Age Group"]
-        key = normalize_dashes(player_info["Name"]).lower().strip()
-
-        def by_age(df):
-            if df is None or df.empty or "Age Group" not in df.columns:
-                return df
-            return df[df["Age Group"] == grp]
-
-        def by_name(df):
-            if df is None or df.empty or "nm" not in df.columns:
-                return df
-            return df[df["nm"] == key]
-
-        # Build nm column where missing (for merging / filtering)
-        for df, raw_cols in [
-            (throwing_data, ["Player Name"]),
-            (running_data,  ["AthleteID", "Player Name"]),
-            (mobility_data, ["Player Name"])
-        ]:
-            if df is not None and not df.empty and "nm" not in df.columns:
-                for c in raw_cols:
-                    if c in df.columns:
-                        df["nm"] = df[c].str.lower().str.strip()
-                        break
-
-        # Merge DOB / Age / Age Group into imported data (if not done earlier)
-        def safe_merge_all(df, name_cols):
-            if df is None or df.empty:
-                return df
-            tmp = df.copy()
-            if "nm" not in tmp.columns:
-                for c in name_cols:
-                    if c in tmp.columns:
-                        tmp["nm"] = tmp[c].str.lower().str.strip()
-                        break
-            return tmp.merge(player_db[["nm", "DOB", "Age", "Age Group"]],
-                             on="nm", how="left", suffixes=("", "_x"))
-
-        blast_data       = safe_merge_all(blast_data,       ["Name"])
-        flightscope_data = safe_merge_all(flightscope_data, ["Name","Player Name","Batter"])
-        throwing_data    = safe_merge_all(throwing_data,    ["Player Name"])
-        running_data     = safe_merge_all(running_data,     ["Player Name"])
-        mobility_data    = safe_merge_all(mobility_data,    ["Player Name"])
-        dynamo_data      = safe_merge_all(dynamo_data,      ["Name"])
-
-        # Slice
-        grp_blast = by_age(blast_data)
-        grp_fs    = by_age(flightscope_data)
-        grp_dyn   = by_age(dynamo_data)
-        grp_throw = by_name(throwing_data)
-        grp_run   = by_name(running_data)
-        grp_mob   = by_name(mobility_data)
-
-        # ---------- 4)  Compute metrics -----------------------------------
-        max_ev, p90_ev        = calculate_flightscope_metrics(grp_fs) if grp_fs is not None and not grp_fs.empty else (None, None)
-        averages, ranges      = calculate_blast_metrics(grp_blast)    if grp_blast is not None and not grp_blast.empty else ({}, {})
-        velocities            = calculate_throwing_velocities(grp_throw)
-        speeds, speed_ranges  = calculate_running_speeds(grp_run)
-
-        mobility_dict = {}
-        if grp_mob is not None and not grp_mob.empty:
-            r = grp_mob.iloc[0]
-            mobility_dict = {
-                "Ankle":    r.get("Ankle Mobility"),
-                "Thoracic": r.get("Thoracic Mobility"),
-                "Lumbar":   r.get("Lumbar Mobility")
+            player_info = {
+                "Name": prow["Name"],
+                "Age": int(prow["Age"]),
+                "Age Group": prow["Age Group"],
+                "Position": prow["Position"],
+                "Class": prow["Class"],
+                "High School": prow["High School"],
+                "Height": prow["Height"],
+                "Weight": prow["Weight"],
+                "B/T": f"{prow.get('BattingHandedness','')}/{prow.get('ThrowingHandedness','')}".rstrip("/"),
+                "DOB": prow["DOB"],
+                "AssessmentDate": assess_date.strftime("%m/%d/%Y"),
             }
 
-        # ---------- 5)  Optional debug preview ---------------------------
-        if st.checkbox("Show debug preview"):
-            for lbl, df in [("Blast", grp_blast), ("Flightscope", grp_fs),
-                            ("Throwing", grp_throw), ("Running", grp_run),
-                            ("Mobility", grp_mob), ("Dynamo", grp_dyn)]:
-                st.markdown(f"**{lbl}** *(first 3 rows)*")
-                st.dataframe(df.head(3))
+            notes_df = st.session_state.get("notes_df", pd.DataFrame())
+            last_note = notes_df.query("Name == @player_info['Name']").sort_values("Date", ascending=False)["Note"].head(1)
+            player_info["LatestNoteText"] = last_note.iat[0] if not last_note.empty else ""
 
-        # ---------- 6)  Build PDF ----------------------------------------
-        st.markdown("---")
-        if st.button("Generate Combined PDF", use_container_width=True):
-            with st.spinner("Building PDF…"):
-                pdf_buf = create_combined_pdf(
-                max_ev=max_ev,
-                percentile_90_ev=p90_ev,
-                averages=averages,
-                ranges=ranges,
-                velocities=velocities,
-                speeds=speeds,
-                speed_ranges=speed_ranges,
-                player_info=player_info,
-                flightscope_data=grp_fs,     # 👈 clearly labelled
-                mobility=mobility_dict,
-                dynamo_data=grp_dyn
-)
-            st.success("PDF ready!")
-            st.download_button("⬇️ Download",
-                               data=pdf_buf,
-                               file_name=f"{player_info['Name'].replace(' ','')}.pdf",
-                               mime="application/pdf")
+            grp = player_info["Age Group"]
+            key = normalize_dashes(player_info["Name"]).lower().strip()
 
-    # =========================================================================
-    # B)  BLANK CSV TEMPLATES
-    # =========================================================================
-    with tmpl_tab:
-        st.subheader("📥 Blank CSV templates")
-        def template_btn(fname, cols):
-            csv = pd.DataFrame(columns=cols).to_csv(index=False).encode("utf-8")
-            st.download_button(fname, csv, file_name=fname, mime="text/csv")
+            def by_age(df):
+                if df is None or df.empty or "Age Group" not in df.columns:
+                    return df
+                return df[df["Age Group"] == grp]
 
-        colA, colB = st.columns(2)
-        with colA:
-            template_btn("running_speed_template.csv",
-                         ["Player Name", "30yd Time", "60yd Time", "5-5-10 Shuttle Time"])
-            template_btn("core_strength_template.csv",
-                         ["Player Name", "Core Strength Measurement"])
-        with colB:
-            template_btn("throwing_velocities_template.csv",
-                         ["Player Name", "Positional Throw Velocity", "Pulldown Velocity",
-                          "FB Velocity", "SL Velocity", "CB Velocity", "CH Velocity"])
-            template_btn("mobility_template.csv",
-                         ["Player Name", "Ankle Mobility", "Thoracic Mobility", "Lumbar Mobility"])
+            def by_name(df):
+                if df is None or df.empty or "nm" not in df.columns:
+                    return df
+                return df[df["nm"] == key]
 
+            for df, raw_cols in [
+                (throwing_data, ["Player Name"]),
+                (running_data, ["AthleteID", "Player Name"]),
+                (mobility_data, ["Player Name"])
+            ]:
+                if df is not None and not df.empty and "nm" not in df.columns:
+                    for c in raw_cols:
+                        if c in df.columns:
+                            df["nm"] = df[c].str.lower().str.strip()
+                            break
 
+            def safe_merge_all(df, name_cols):
+                if df is None or df.empty:
+                    return df
+                tmp = df.copy()
+                if "nm" not in tmp.columns:
+                    for c in name_cols:
+                        if c in tmp.columns:
+                            tmp["nm"] = tmp[c].str.lower().str.strip()
+                            break
+                return tmp.merge(player_db[["nm", "DOB", "Age", "Age Group"]],
+                                 on="nm", how="left", suffixes=("", "_x"))
 
+            blast_data = safe_merge_all(blast_data, ["Name"])
+            flightscope_data = safe_merge_all(flightscope_data, ["Name", "Player Name", "Batter"])
+            throwing_data = safe_merge_all(throwing_data, ["Player Name"])
+            running_data = safe_merge_all(running_data, ["Player Name"])
+            mobility_data = safe_merge_all(mobility_data, ["Player Name"])
+            dynamo_data = safe_merge_all(dynamo_data, ["Name"])
+
+            grp_blast = by_age(blast_data)
+            grp_fs = by_age(flightscope_data)
+            grp_dyn = by_age(dynamo_data)
+            grp_throw = by_name(throwing_data)
+            grp_run = by_name(running_data)
+            grp_mob = by_name(mobility_data)
+
+            max_ev, p90_ev = calculate_flightscope_metrics(grp_fs) if grp_fs is not None and not grp_fs.empty else (None, None)
+            averages, ranges = calculate_blast_metrics(grp_blast) if grp_blast is not None and not grp_blast.empty else ({}, {})
+            velocities = calculate_throwing_velocities(grp_throw)
+            speeds, speed_ranges = calculate_running_speeds(grp_run)
+
+            mobility_dict = {}
+            if grp_mob is not None and not grp_mob.empty:
+                r = grp_mob.iloc[0]
+                mobility_dict = {
+                    "Ankle": r.get("Ankle Mobility"),
+                    "Thoracic": r.get("Thoracic Mobility"),
+                    "Lumbar": r.get("Lumbar Mobility")
+                }
+
+            if st.checkbox("Show debug preview"):
+                for lbl, df in [("Blast", grp_blast), ("Flightscope", grp_fs),
+                                ("Throwing", grp_throw), ("Running", grp_run),
+                                ("Mobility", grp_mob), ("Dynamo", grp_dyn)]:
+                    st.markdown(f"**{lbl}** *(first 3 rows)*")
+                    st.dataframe(df.head(3))
+
+            st.markdown("---")
+            if st.button("Generate Combined PDF", use_container_width=True):
+                with st.spinner("Building PDF…"):
+                    pdf_buf = create_combined_pdf(
+                        max_ev=max_ev,
+                        percentile_90_ev=p90_ev,
+                        averages=averages,
+                        ranges=ranges,
+                        velocities=velocities,
+                        speeds=speeds,
+                        speed_ranges=speed_ranges,
+                        player_info=player_info,
+                        flightscope_data=grp_fs,
+                        mobility=mobility_dict,
+                        dynamo_data=grp_dyn
+                    )
+                st.success("PDF ready!")
+                st.download_button("⬇️ Download",
+                                   data=pdf_buf,
+                                   file_name=f"{player_info['Name'].replace(' ','')}.pdf",
+                                   mime="application/pdf")
+
+        # =========================================================================
+        # B)  BLANK CSV TEMPLATES
+        # =========================================================================
+        with tmpl_tab:
+            st.subheader("📥 Blank CSV templates")
+            def template_btn(fname, cols):
+                csv = pd.DataFrame(columns=cols).to_csv(index=False).encode("utf-8")
+                st.download_button(fname, csv, file_name=fname, mime="text/csv")
+
+            colA, colB = st.columns(2)
+            with colA:
+                template_btn("running_speed_template.csv",
+                             ["Player Name", "30yd Time", "60yd Time", "5-5-10 Shuttle Time"])
+                template_btn("core_strength_template.csv",
+                             ["Player Name", "Core Strength Measurement"])
+            with colB:
+                template_btn("throwing_velocities_template.csv",
+                             ["Player Name", "Positional Throw Velocity", "Pulldown Velocity",
+                              "FB Velocity", "SL Velocity", "CB Velocity", "CH Velocity"])
+                template_btn("mobility_template.csv",
+                             ["Player Name", "Ankle Mobility", "Thoracic Mobility", "Lumbar Mobility"])
+
+    except Exception as e:
+        st.error("❌ Tab 5 crashed.")
+        st.exception(e)
 
 
 
