@@ -1612,16 +1612,15 @@ with tab3:
 with tab4:
     try:
         st.header("🔧 Metric Thresholds by Age-Group")
-        st.markdown("✅ Tab 4 is rendering...")
+        st.markdown("✅ Tab 4 logic started")
 
-        # Initialize session state
         if "tab4_csv_uploaded" not in st.session_state:
             st.session_state["tab4_csv_uploaded"] = False
 
         if "thresholds" not in st.session_state:
             st.session_state["thresholds"] = broadcast_metrics_to_ages(metric_thresholds)
 
-        # Fix old flat structure if needed
+        # Ensure thresholds match expected structure
         if not any(k in AGE_LABELS for k in st.session_state["thresholds"].keys()):
             st.session_state["thresholds"] = broadcast_metrics_to_ages(st.session_state["thresholds"])
 
@@ -1643,11 +1642,9 @@ with tab4:
                 lo=lo, mid=mid, hi=hi
             )
 
-        # View/Edit toggle
         edit_mode = st.toggle("Edit mode", value=False)
         st.caption("Switch to **Edit** to change values, then press **Save thresholds**.")
 
-        # Age-group tabs
         age_groups = list(thresholds.keys())
         if not age_groups:
             st.warning("⚠️ No age-group data found. Please upload thresholds.")
@@ -1700,7 +1697,6 @@ with tab4:
                         col_mid.metric(cfg["lbl_mid"], f"{cfg['mid']}")
                         col_hi.metric(cfg["lbl_hi"], f"{cfg['hi']}")
 
-            # Save / Download / Upload
             if edit_mode:
                 col_save, col_dl, col_up = st.columns(3)
 
@@ -1748,6 +1744,7 @@ with tab4:
     except Exception as e:
         st.error("❌ Tab 4 crashed.")
         st.exception(e)
+
 
 
 
@@ -1854,7 +1851,7 @@ with tab5:
             if player_db.empty:
              st.warning("Add players first (tab **Player Database**). Tab 4 & 5 may not function without it.")
             else:
-             # 🟢 Place the rest of Tab 5 code here
+             
 
 
              sel_idx = st.selectbox("Player", player_db.index, format_func=lambda i: player_db.at[i, "Name"])
@@ -1997,6 +1994,7 @@ with tab5:
     except Exception as e:
         st.error("❌ Tab 5 crashed.")
         st.exception(e)
+
 
 
 
