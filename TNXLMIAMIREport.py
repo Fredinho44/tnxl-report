@@ -1211,6 +1211,12 @@ DATABASE_FILENAME = "player_database.csv"
 if "player_db" not in st.session_state:
     st.session_state.player_db = load_player_db(DATABASE_FILENAME)
 
+if "player_db" not in st.session_state or st.session_state["player_db"].empty:
+    st.warning("⚠️ Player database is empty. Tabs 4 and 5 may not function.")
+    st.session_state["player_db"] = pd.DataFrame(columns=[
+        "Name", "Age", "Class", "High School", "Height", "Weight",
+        "Position", "BattingHandedness", "ThrowingHandedness", "DOB"
+    ])
 
 
 # =======================
@@ -1219,6 +1225,7 @@ if "player_db" not in st.session_state:
 from datetime import date
 import traceback
 st.title("TNXL MIAMI - Athlete Performance Data Uploader, Report Generator & CSV Utilities")
+st.markdown("✅ Tabs are initializing")
 
 tab1, tab2, tab3, tab4, tab5 = st.tabs([
     "CSV Merge",
@@ -1845,14 +1852,16 @@ with tab5:
                 player_db["Age Group"] = player_db["Age"].apply(get_group)
 
             if player_db.empty:
-                st.warning("Add players first (tab **Player Database**).")
-                st.stop()
+             st.warning("Add players first (tab **Player Database**). Tab 4 & 5 may not function without it.")
+            else:
+             # 🟢 Place the rest of Tab 5 code here
 
-            sel_idx = st.selectbox("Player", player_db.index, format_func=lambda i: player_db.at[i, "Name"])
-            prow = player_db.loc[sel_idx]
-            assess_date = st.date_input("Assessment Date", datetime.date.today())
 
-            player_info = {
+             sel_idx = st.selectbox("Player", player_db.index, format_func=lambda i: player_db.at[i, "Name"])
+             prow = player_db.loc[sel_idx]
+             assess_date = st.date_input("Assessment Date", datetime.date.today())
+
+             player_info = {
                 "Name": prow["Name"],
                 "Age": int(prow["Age"]),
                 "Age Group": prow["Age Group"],
