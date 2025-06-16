@@ -292,6 +292,49 @@ def draw_header_bg(canvas, doc):
 
     canvas.restoreState()
 
+# Ensure player_db is initialized from file or fallback
+if "player_db" not in st.session_state:
+    if os.path.exists("player_database.csv"):
+        try:
+            st.session_state.player_db = pd.read_csv("player_database.csv")
+            st.write("✅ Loaded player database from file.")
+        except Exception as e:
+            st.session_state.player_db = pd.DataFrame(columns=[
+                "Name", "DOB", "Age", "Class", "High School", "Height", "Weight",
+                "Position", "BattingHandedness", "ThrowingHandedness", "Age Group"
+            ])
+            st.warning("⚠️ Failed to load player_database.csv. Initialized empty DB.")
+            st.exception(e)
+    else:
+        st.session_state.player_db = pd.DataFrame(columns=[
+            "Name", "DOB", "Age", "Class", "High School", "Height", "Weight",
+            "Position", "BattingHandedness", "ThrowingHandedness", "Age Group"
+        ])
+        st.info("ℹ️ No player_database.csv found. Starting with empty database.")
+
+# Ensure thresholds are initialized from file or default
+if "thresholds" not in st.session_state:
+    if os.path.exists("thresholds.csv"):
+        try:
+            df = pd.read_csv("thresholds.csv")
+            grouped = {}
+            for _, row in df.iterrows():
+                age_grp = row["Age Group"]
+                metric = row["Metric"]
+                grouped.setdefault(age_grp, {})[metric] = {
+                    "below_avg": float(row["below_avg"]),
+                    "avg": float(row["avg"]),
+                    "above_avg": float(row["above_avg"])
+                }
+            st.session_state["thresholds"] = grouped
+            st.write("✅ Loaded thresholds from thresholds.csv.")
+        except Exception as e:
+            st.session_state["thresholds"] = broadcast_metrics_to_ages(metric_thresholds)
+            st.warning("⚠️ Failed to load thresholds.csv. Using default thresholds.")
+            st.exception(e)
+    else:
+        st.session_state["thresholds"] = broadcast_metrics_to_ages(metric_thresholds)
+        st.info("ℹ️ No thresholds.csv found. Using default thresholds.")
 
 
 
@@ -1994,6 +2037,7 @@ with tab5:
     except Exception as e:
         st.error("❌ Tab 5 crashed.")
         st.exception(e)
+
 
 
 
