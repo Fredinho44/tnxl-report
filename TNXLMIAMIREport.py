@@ -1324,7 +1324,7 @@ if "player_db" not in st.session_state or st.session_state["player_db"].empty:
     ])
 
 
-tab1 = tab2 = tab3 = tab4 = tab5 = False
+
 
 
 # =======================
@@ -1339,27 +1339,12 @@ st.markdown("✅ Tabs are initializing")
 # Tab labels and flags
 # ───────────────────────────────────────────────────────────
 tab_labels = ["CSV Merge", "Player Database", "Scout Notes", "Thresholds", "Report Generation"]
-tab_keys   = ["tab1", "tab2", "tab3", "tab4", "tab5"]
-tab_flags  = {k: False for k in tab_keys}
 
+tab_csv, tab_db, tab_notes, tab_thr, tab_rep = st.tabs(tab_labels)
 # Set active tab based on session or default to tab1
 # --- initialise once ---
 if "active_tab" not in st.session_state:
     st.session_state.active_tab = "CSV Merge"
-
-tab_labels = ["CSV Merge", "Player Database", "Scout Notes",
-              "Thresholds", "Report Generation"]
-
-# --- ONE tab-strip ---
-
-
-
-
-tab1, tab2, tab3, tab4, tab5 = tab_flags.values()
-
-# Create tabs in Streamlit UI
-tabs = st.tabs(tab_labels)
-tab_blocks = {label: tabs[i] for i, label in enumerate(tab_labels)}
 
 
 def show_csv_merge_ui():
@@ -1447,6 +1432,7 @@ import datetime
 # TAB 2 – PLAYER DATABASE
 # ────────────────────────────────────────────────────────────────────
 # 
+
 def show_player_db_ui():
     st.subheader("👥 Player database")
     st.caption("Rows live in **player_database.csv**")
@@ -1633,6 +1619,7 @@ pass
 
 # ─── Tab 3 : Scout Notes ────────────────────────────────────────────────
 # ─── Tab 3 : Scout Notes ────────────────────────────────────────────────
+
 def show_scout_notes_ui():
 
     import datetime
@@ -1886,6 +1873,7 @@ pass
 # ─────────────────────────────────────────────────────────────────────────────
 # TAB-5  ➜  Reports & Templates
 # ─────────────────────────────────────────────────────────────────────────────
+
 def show_report_gen_ui():
 
     st.session_state.activate_tab = "Report Generation"
@@ -2143,21 +2131,11 @@ def show_report_gen_ui():
         st.error("❌ Tab 5 crashed.")
         st.exception(e)
 
-
-
-for i, label in enumerate(tab_labels):
-    with tabs[i]:
-        st.session_state.active_tab = label
-        if label == "CSV Merge":
-            show_csv_merge_ui()
-        elif label == "Player Database":
-            show_player_db_ui()
-        elif label == "Scout Notes":
-            show_scout_notes_ui()
-        elif label == "Thresholds":
-            show_thresholds_ui()
-        else:
-            show_report_gen_ui()
+with tab_csv:   show_csv_merge_ui()
+with tab_db:    show_player_db_ui()
+with tab_notes: show_scout_notes_ui()
+with tab_thr:   show_thresholds_ui()
+with tab_rep:   show_report_gen_ui()
 
 
 
