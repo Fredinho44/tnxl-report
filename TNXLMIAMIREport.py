@@ -124,16 +124,6 @@ def flatten_thresholds(thr: dict, *, pad_factor: float = 0.1) -> pd.DataFrame:
 # -------------------------------------------------
 # Safe re-run helper (works on *all* Streamlit versions)
 # -------------------------------------------------
-def safe_rerun():
-    """
-    Try st.rerun → st.experimental_rerun → fallback: browser warning.
-    """
-    try:
-        getattr(st, "rerun", getattr(st, "experimental_rerun", lambda: None))()
-    except Exception as e:
-        st.warning("Please manually refresh the page.")
-        st.error(f"Rerun error: {e}")
-
 
 metric_thresholds = {
     "Plane Score": {"above_avg": 70, "avg":60,"below_avg":40},
@@ -282,7 +272,7 @@ def draw_header_bg(canvas, doc):
     canvas.rect(0, h - header_h, w, header_h, fill=1, stroke=0)
 
     # 2) Draw a gold triangle on the right side only
-    canvas.setFillColor(colors.HexColor("#D4AF37"))
+    canvas.setFillColor(colors.HexColor("#DDC38B"))
     path = canvas.beginPath()
     path.moveTo(w, h)                 # top‐right
     path.lineTo(w, h - header_h)      # bottom‐right of header
@@ -808,7 +798,7 @@ def build_gameplay_data_table(
                     colWidths=[width*0.30, width*0.12, width*0.30],
                     hAlign="LEFT")
     table.setStyle(TableStyle([
-        ('BACKGROUND',    (0,0), (-1,0), colors.HexColor('#D4AF37')),
+        ('BACKGROUND',    (0,0), (-1,0), colors.HexColor('#DDC38B')),
         ('TEXTCOLOR',     (0,0), (-1,0), colors.black),
         ('FONTNAME',      (0,0), (-1,0), 'Helvetica-Bold'),
         ('FONTSIZE',      (0,0), (-1,-1), 10),
@@ -822,14 +812,34 @@ def build_gameplay_data_table(
 
 
 
+def get_player_forcedecks_data(force_df, player_name):
+    if force_df is None or player_name is None:
+        return None
 
+    player_data = force_df[force_df['Name'].str.lower() == player_name.lower()]
+    if player_data.empty:
+        return None
 
+    output = []
+    grouped = player_data.groupby('Test Type')
 
+    for test_type, group in grouped:
+        row = [test_type]
 
+        # Handle each metric safely
+        jh = group.get('Jump Height (Imp-Mom) in Inches [in]', pd.Series([None])).values[0]
+        pp = group.get('Peak Power / BM [W/kg]', pd.Series([None])).values[0]
+        rsi = group.get('RSI-modified [m/s]', pd.Series([None])).values[0]
+        rfd = group.get('Concentric RFD % (Asym) (%)', pd.Series([None])).values[0]
 
+        row.append(f"{jh:.1f}" if pd.notnull(jh) else "")
+        row.append(f"{pp:.1f}" if pd.notnull(pp) else "")
+        row.append(f"{rsi:.2f}" if pd.notnull(rsi) else "")
+        row.append(rfd.strip() if isinstance(rfd, str) else f"{rfd:.1f}" if pd.notnull(rfd) else "")
 
+        output.append(row)
 
-
+    return output
 
 
 def generate_exit_velo_heatmap(df):
@@ -898,18 +908,6 @@ def generate_exit_velo_heatmap(df):
     return Image(buf, width=280, height=280)
 
 
-
-
-
-
-
-
-
-
-
-
-
-
 def build_dynamo_table(dynamo_data, player_info, width):
     from reportlab.platypus import Table, TableStyle, Paragraph
     from reportlab.lib.styles import getSampleStyleSheet
@@ -956,7 +954,7 @@ def build_dynamo_table(dynamo_data, player_info, width):
     # create the table with the same look as your other tables
     tbl = Table(data, colWidths=[width/6]*6)
     tbl.setStyle(TableStyle([
-        ('BACKGROUND',    (0,0), (-1,0), colors.HexColor('#D4AF37')),
+        ('BACKGROUND',    (0,0), (-1,0), colors.HexColor('#DDC38B')),
         ('TEXTCOLOR',     (0,0), (-1,0), colors.black),
         ('FONTNAME',      (0,0), (-1,0), 'Helvetica-Bold'),
         ('FONTSIZE',      (0,0), (-1,-1), 10),
@@ -965,6 +963,55 @@ def build_dynamo_table(dynamo_data, player_info, width):
         ('VALIGN',        (0,0), (-1,-1), 'MIDDLE'),
         ('ROWBACKGROUNDS',(0,1),(-1,-1), [None, '#FAFAFA']),
         ('GRID',          (0,0), (-1,-1), 0.5, colors.lightgrey),
+    ]))
+    return tbl
+
+from reportlab.platypus import PageBreak
+
+def build_forcedecks_table(forcedecks_df, player_name, width):
+    from reportlab.platypus import Table, TableStyle, Paragraph
+    from reportlab.lib import colors
+
+    if forcedecks_df is None or forcedecks_df.empty:
+        return Paragraph("No ForceDecks data available.", styles["Normal"])
+
+    # Filter and group by Test Type
+    df = forcedecks_df[forcedecks_df["Name"].str.lower().str.strip() == player_name.lower().strip()]
+
+    if df.empty:
+        return Paragraph("No ForceDecks data for this player.", styles["Normal"])
+
+    # Columns we want
+    columns = [
+        "Test Type",
+        "Jump Height (Imp-Mom) in Inches [in]",
+        "Peak Power / BM [W/kg]",
+        "RSI-modified [m/s]",
+        "Concentric RFD % (Asym) (%)"
+    ]
+    missing_cols = [col for col in columns if col not in df.columns]
+    if missing_cols:
+        return Paragraph(f"Missing columns in ForceDecks CSV: {', '.join(missing_cols)}", styles["Normal"])
+
+    # Table rows
+    data = [columns]
+    for _, row in df.iterrows():
+        data.append([
+            row["Test Type"],
+            f"{row[columns[1]]:.1f}" if pd.notnull(row[columns[1]]) else "",
+            f"{row[columns[2]]:.1f}" if pd.notnull(row[columns[2]]) else "",
+            f"{row[columns[3]]:.2f}" if pd.notnull(row[columns[3]]) else "",
+            str(row[columns[4]])
+        ])
+
+    tbl = Table(data, colWidths=[width/5]*5, hAlign='LEFT')
+    tbl.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor("#0E0A06")),
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+        ('FONTNAME', (0, 0), (-1, -1), 'Helvetica'),
+        ('FONTSIZE', (0, 0), (-1, -1), 8),
+        ('GRID', (0, 0), (-1, -1), 0.25, colors.grey),
+        ('ALIGN', (1, 1), (-1, -1), 'CENTER'),
     ]))
     return tbl
 
@@ -993,6 +1040,8 @@ def create_combined_pdf(
     flightscope_data,
     mobility=None,
     dynamo_data=None,
+    forcedecks_data=None, 
+    
 ):
     buffer = BytesIO()
     doc = SimpleDocTemplate(
@@ -1113,7 +1162,7 @@ def create_combined_pdf(
     notes_tbl.setStyle(
         TableStyle(
             [
-                ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#D4AF37")),
+                ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#DDC38B")),
                 ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
                 ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
                 ("ALIGN", (0, 0), (-1, 0), "CENTER"),
@@ -1146,6 +1195,19 @@ def create_combined_pdf(
         mergeSpace=True,
     )
     elements.append(Table([[dynamo_frame, ""]], colWidths=[left_w, right_w]))
+    
+    # ForceDecks table (like Dynamo)
+    elements.append(PageBreak())
+    elements.append(Paragraph("ForceDecks Summary", styles["Heading3"]))
+    elements.append(Spacer(1, 6))
+
+    if forcedecks_data is not None and not forcedecks_data.empty:
+      force_tbl = build_forcedecks_table(forcedecks_data, player_info.get("Name", ""), doc.width)
+    else:
+      force_tbl = Paragraph("No ForceDecks data available.", styles["Normal"])
+
+    elements.append(force_tbl)
+
 
     # ── Build PDF ────────────────────────────────────────────────────────
     doc.build(elements, onFirstPage=draw_header_bg, onLaterPages=draw_header_bg)
@@ -1222,7 +1284,7 @@ def build_profile_table(
         hAlign="LEFT"
     )
     tbl.setStyle(TableStyle([
-        ('BACKGROUND',    (0,0), (-1,0), colors.HexColor('#D4AF37')),
+        ('BACKGROUND',    (0,0), (-1,0), colors.HexColor('#DDC38B')),
         ('TEXTCOLOR',     (0,0), (-1,0), colors.black),
         ('FONTNAME',      (0,0), (-1,0), 'Helvetica-Bold'),
         ('FONTSIZE',      (0,0), (-1,-1), 10),
@@ -1262,6 +1324,9 @@ if "player_db" not in st.session_state or st.session_state["player_db"].empty:
     ])
 
 
+tab1 = tab2 = tab3 = tab4 = tab5 = False
+
+
 # =======================
 # Streamlit App Tabs
 # =======================
@@ -1270,16 +1335,36 @@ import traceback
 st.title("TNXL MIAMI - Athlete Performance Data Uploader, Report Generator & CSV Utilities")
 st.markdown("✅ Tabs are initializing")
 
-tab1, tab2, tab3, tab4, tab5 = st.tabs([
-    "CSV Merge",
-    "Player Database",
-    "Scout Notes",          
-    "Thresholds",           
-    "Report Generation"     
-])
-with tab1:
-    st.header("CSV Merger")
+# ───────────────────────────────────────────────────────────
+# Tab labels and flags
+# ───────────────────────────────────────────────────────────
+tab_labels = ["CSV Merge", "Player Database", "Scout Notes", "Thresholds", "Report Generation"]
+tab_keys   = ["tab1", "tab2", "tab3", "tab4", "tab5"]
+tab_flags  = {k: False for k in tab_keys}
 
+# Set active tab based on session or default to tab1
+# --- initialise once ---
+if "active_tab" not in st.session_state:
+    st.session_state.active_tab = "CSV Merge"
+
+tab_labels = ["CSV Merge", "Player Database", "Scout Notes",
+              "Thresholds", "Report Generation"]
+
+# --- ONE tab-strip ---
+
+
+
+
+tab1, tab2, tab3, tab4, tab5 = tab_flags.values()
+
+# Create tabs in Streamlit UI
+tabs = st.tabs(tab_labels)
+tab_blocks = {label: tabs[i] for i, label in enumerate(tab_labels)}
+
+
+def show_csv_merge_ui():
+    """Tab 1 - CSV merger"""
+    
     # 1) Choose your CSV category
     csv_categories = [
         "Blast",
@@ -1352,6 +1437,7 @@ with tab1:
         st.info(f"Upload two or more {csv_type} CSVs above to merge them.")
 
 
+pass
 
 import datetime
 
@@ -1360,7 +1446,8 @@ import datetime
 # ────────────────────────────────────────────────────────────────────
 # TAB 2 – PLAYER DATABASE
 # ────────────────────────────────────────────────────────────────────
-with tab2:
+# 
+def show_player_db_ui():
     st.subheader("👥 Player database")
     st.caption("Rows live in **player_database.csv**")
 
@@ -1542,11 +1629,12 @@ with tab2:
                 if os.path.exists(DATABASE_FILENAME):
                     os.remove(DATABASE_FILENAME)
                 st.success("Database cleared")
-
+pass
 
 # ─── Tab 3 : Scout Notes ────────────────────────────────────────────────
 # ─── Tab 3 : Scout Notes ────────────────────────────────────────────────
-with tab3:
+def show_scout_notes_ui():
+
     import datetime
     st.subheader("📋 Scout Notes")
 
@@ -1649,10 +1737,11 @@ with tab3:
             st.session_state.notes_df = pd.DataFrame(columns=["Name", "Date", "Note"])
             st.session_state.notes_df.to_csv(NOTES_FILENAME, index=False)
             st.success("All notes removed")
-
+pass
 
 # ─── Tab 4 : Thresholds ───────────────────────────────────────────────
-with tab4:
+def show_thresholds_ui():
+    st.session_state.activate_tab = "Thresholds"
     try:
         st.header("🔧 Metric Thresholds by Age-Group")
         st.markdown("✅ Tab 4 logic started")
@@ -1778,8 +1867,8 @@ with tab4:
                                             "above_avg": float(r["above_avg"]),
                                         }
                                     st.session_state["thresholds"] = new
-                                    st.success("✅ Thresholds updated. Refreshing page...")
-                                    safe_rerun()
+                                    st.session_state["active_tab"] = "Report Generation"  # force return to Tab 5
+                                    st.success("✅ Thresholds updated. Ready to continue.")
 
                         except Exception as exc:
                             st.error(f"❌ Failed to read CSV: {exc}")
@@ -1787,7 +1876,7 @@ with tab4:
     except Exception as e:
         st.error("❌ Tab 4 crashed.")
         st.exception(e)
-
+pass
 
 
 
@@ -1797,7 +1886,9 @@ with tab4:
 # ─────────────────────────────────────────────────────────────────────────────
 # TAB-5  ➜  Reports & Templates
 # ─────────────────────────────────────────────────────────────────────────────
-with tab5:
+def show_report_gen_ui():
+
+    st.session_state.activate_tab = "Report Generation"
     try:
         st.header("📄 Reports & Templates")
         st.markdown("### ✅ Tab 5 is rendering...")
@@ -1828,7 +1919,7 @@ with tab5:
                 return (s or "").replace("\u0096", "-").replace("–", "-").replace("—", "-")
 
             with st.expander("1️⃣  Upload CSVs & Map Names", expanded=True):
-                up1, up2, up3 = st.columns(3)
+                up1, up2, up3, up4 = st.columns(4)
                 with up1:
                     fs_file = st.file_uploader("Flightscope CSV", type="csv")
                     throw_file = st.file_uploader("Throwing Velocities CSV", type="csv")
@@ -1838,6 +1929,8 @@ with tab5:
                 with up3:
                     mob_file = st.file_uploader("Mobility CSV", type="csv")
                     dyn_file = st.file_uploader("Dynamo CSV", type="csv")
+                with up4:
+                    force_file = st.file_uploader("ForceDesk CSV", type="csv")    
 
                 flightscope_data = safe_read_csv(fs_file)
                 blast_data = safe_read_csv(blast_file)
@@ -1845,6 +1938,7 @@ with tab5:
                 running_data = safe_read_csv(run_file)
                 mobility_data = safe_read_csv(mob_file)
                 dynamo_data = safe_read_csv(dyn_file)
+                forcedecks_data = safe_read_csv(force_file)
 
                 for df, col in [
                     (running_data, "AthleteID"),
@@ -1990,6 +2084,16 @@ with tab5:
                     st.markdown(f"**{lbl}** *(first 3 rows)*")
                     st.dataframe(df.head(3))
 
+            st.write("ForceDecks data preview:")
+            st.dataframe(forcedecks_data.head())
+
+            if forcedecks_data is not None and not forcedecks_data.empty and "Name" in forcedecks_data.columns:
+              st.write("Player name:", player_info["Name"]) 
+              st.write("Matches in ForceDecks CSV:",
+               forcedecks_data[forcedecks_data["Name"].str.lower() == player_info["Name"].lower()])
+            else:
+             st.warning("⚠️ No ForceDecks CSV uploaded yet or 'Name' column missing.")
+
             st.markdown("---")
             if st.button("Generate Combined PDF", use_container_width=True):
                 with st.spinner("Building PDF…"):
@@ -2004,7 +2108,8 @@ with tab5:
                         player_info=player_info,
                         flightscope_data=grp_fs,
                         mobility=mobility_dict,
-                        dynamo_data=grp_dyn
+                        dynamo_data=grp_dyn,
+                        forcedecks_data=safe_read_csv(force_file)
                     )
                 st.success("PDF ready!")
                 st.download_button("⬇️ Download",
@@ -2037,6 +2142,22 @@ with tab5:
     except Exception as e:
         st.error("❌ Tab 5 crashed.")
         st.exception(e)
+
+
+
+for i, label in enumerate(tab_labels):
+    with tabs[i]:
+        st.session_state.active_tab = label
+        if label == "CSV Merge":
+            show_csv_merge_ui()
+        elif label == "Player Database":
+            show_player_db_ui()
+        elif label == "Scout Notes":
+            show_scout_notes_ui()
+        elif label == "Thresholds":
+            show_thresholds_ui()
+        else:
+            show_report_gen_ui()
 
 
 
