@@ -1340,7 +1340,14 @@ st.markdown("✅ Tabs are initializing")
 # ───────────────────────────────────────────────────────────
 tab_labels = ["CSV Merge", "Player Database", "Scout Notes", "Thresholds", "Report Generation"]
 
-tab_csv, tab_db, tab_notes, tab_thr, tab_rep = st.tabs(tab_labels)
+page = st.radio(
+    "Jump to section:",
+    tab_labels,
+    horizontal=True,
+    key="main_nav"          # <— remembers choice across reruns
+)
+
+
 # Set active tab based on session or default to tab1
 # --- initialise once ---
 if "active_tab" not in st.session_state:
@@ -2131,12 +2138,16 @@ def show_report_gen_ui():
         st.error("❌ Tab 5 crashed.")
         st.exception(e)
 
-with tab_csv:   show_csv_merge_ui()
-with tab_db:    show_player_db_ui()
-with tab_notes: show_scout_notes_ui()
-with tab_thr:   show_thresholds_ui()
-with tab_rep:   show_report_gen_ui()
-
+if page == "CSV Merge":
+    show_csv_merge_ui()
+elif page == "Player Database":
+    show_player_db_ui()
+elif page == "Scout Notes":
+    show_scout_notes_ui()
+elif page == "Thresholds":
+    show_thresholds_ui()
+else:   # "Report Generation"
+    show_report_gen_ui()
 
 
 
