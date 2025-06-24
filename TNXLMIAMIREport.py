@@ -52,7 +52,12 @@ st.write("Exists in this container →", LOGO_PATH.exists())
 if LOGO_PATH.exists():
     st.image(str(LOGO_PATH), caption="Preview logo", width=120)
 # ───────────────────────────────────────────────────────────
+import os, pathlib, streamlit as st
 
+assets_dir = (Path(__file__).parent / "assets").resolve()
+st.write("Searching for logo in →", assets_dir)
+st.write("Directory contents:", os.listdir(assets_dir) if assets_dir.exists() else "folder missing")
+st.write("LOGO_PATH:", LOGO_PATH, "exists →", LOGO_PATH.exists())
 # thresholds for coloring bars:
 # ──────────────────────────────────────────────────────────────────────────────
 # 1) Thresholds + get_bar_color
