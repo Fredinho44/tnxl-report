@@ -21,6 +21,7 @@ from reportlab.lib.units import inch
 from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.lib import colors
 from reportlab.lib.units import inch
+from pathlib import Path
 
 # build one global stylesheet and register all your custom styles immediately
 styles = getSampleStyleSheet()
@@ -41,6 +42,8 @@ if "notes_df" not in st.session_state:
     else:
         st.session_state.notes_df = pd.DataFrame(columns=["Name","Date","Note"])
 
+
+LOGO_PATH = Path(__file__).parent / "assets" / "tnxl_logo.png" 
 
 # thresholds for coloring bars:
 # ──────────────────────────────────────────────────────────────────────────────
@@ -1053,10 +1056,11 @@ def create_combined_pdf(
         bottomMargin=30,
     )
     elements = []
-
+    
+     
     # ── Header ──────────────────────────────────────────────────────────
     header = build_header_with_logo_and_player_info(
-        r"C:\Users\AlfredoCaraballo\OneDrive - DSSports\Desktop\TNXL Miami\TNXL MIAMI\TNXL Miami - Updated Logo.png",
+        str(LOGO_PATH),
         player_info,
         doc.width,
     )
@@ -1346,6 +1350,48 @@ page = st.radio(
     horizontal=True,
     key="main_nav"          # <— remembers choice across reruns
 )
+
+# right after the st.radio() line
+st.markdown(
+    """
+    <style>
+    /* ───────── make the new Streamlit-1.46 radio look like tabs ───────── */
+
+    /* 1️⃣  Lay the options horizontally with no gaps */
+    .stRadio > div               { flex-direction: row; gap: 0 !important; }
+
+    /* 2️⃣  Hide the default radio circles (inputs) */
+    .stRadio input[type="radio"] { display: none; }
+
+    /* 3️⃣  Pill container */
+    .stRadio div[role="radiogroup"] > label {
+        background: #eeeeee;
+        padding: 0.35rem 0.9rem;
+        border-radius: 8px;
+        margin-right: 0.5rem;        /* spacing between pills */
+        cursor: pointer;
+        transition: background 0.25s;
+        color: #333333;
+        font-weight: 500;
+    }
+
+    /* 4️⃣  Hover effect */
+    .stRadio div[role="radiogroup"] > label:hover {
+        background: #ddc38b66;       /* 40 % opaque gold */
+    }
+
+    /* 5️⃣  Selected pill (checked input sits *inside* the label) */
+    .stRadio input:checked + div   { display: none; }   /* hide leftover glyph */
+    .stRadio input:checked + div + span {
+        background: #ddc38b;
+        color: #000;
+        font-weight: 600;
+    }
+    </style>
+    """,
+    unsafe_allow_html=True
+)
+
 
 
 # Set active tab based on session or default to tab1
@@ -2148,7 +2194,6 @@ elif page == "Thresholds":
     show_thresholds_ui()
 else:   # "Report Generation"
     show_report_gen_ui()
-
 
 
 
