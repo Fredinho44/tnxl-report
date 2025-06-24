@@ -43,7 +43,7 @@ if "notes_df" not in st.session_state:
         st.session_state.notes_df = pd.DataFrame(columns=["Name","Date","Note"])
 
 
-LOGO_PATH = Path(__file__).parent / "assets" / "tnxl_logo.png" 
+LOGO_PATH = Path(__file__).parent / "assets" /"tnxl_logo.png" 
 
 # ── LOGO DEBUG (delete after we’re done) ───────────────────
 st.markdown("### Logo debug (cloud)")
