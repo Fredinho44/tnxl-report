@@ -45,6 +45,14 @@ if "notes_df" not in st.session_state:
 
 LOGO_PATH = Path(__file__).parent / "assets" / "tnxl_logo.png" 
 
+# ── LOGO DEBUG (delete after we’re done) ───────────────────
+st.markdown("### Logo debug (cloud)")
+st.write("LOGO_PATH:", LOGO_PATH)
+st.write("Exists in this container →", LOGO_PATH.exists())
+if LOGO_PATH.exists():
+    st.image(str(LOGO_PATH), caption="Preview logo", width=120)
+# ───────────────────────────────────────────────────────────
+
 # thresholds for coloring bars:
 # ──────────────────────────────────────────────────────────────────────────────
 # 1) Thresholds + get_bar_color
